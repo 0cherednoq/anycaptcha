@@ -659,9 +659,15 @@ class GeeTestV4TaskRequest(TaskRequest):
 
         request['data'].update(
             dict(
-                method="geetest_v4 ",
+                method="geetest_v4",
                 captcha_id=captcha.captcha_id,
                 pageurl=captcha.page_url
+            )
+        )
+
+        request['data'].update(
+            captcha.get_optional_data(
+                risk_type=('risk_type', None)
             )
         )
 

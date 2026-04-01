@@ -193,6 +193,10 @@ class Solver:
 
         :param page_url: Full URL of the page with CAPTCHA.
         :param captcha_id: Value of captcha_id parameter you found on target website.
+        :param risk_type: (optional) Value of GeeTest v4 risk_type/riskType parameter.
+        :param geetest_api_server_subdomain: (optional) GeeTest API server subdomain.
+        :param geetest_get_lib: (optional) Path to GeeTest loader script.
+        :param init_parameters: (optional) Additional initParameters payload for providers that support it.
         :return: :class:`AsyncSolvedCaptcha <AsyncSolvedCaptcha>` object
         :rtype: unicaps.AsyncSolvedCaptcha
         """

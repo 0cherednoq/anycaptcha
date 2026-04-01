@@ -11,6 +11,10 @@ from ..enums import CaptchaAlphabet
 __all__ = [
     'Service', 'CreateTaskRequest', 'GetTaskResultRequest',
     'GetBalanceRequest',
+    'GeeTestV4TaskRequest',
+    'GeeTestV4SolutionRequest',
+    'HCaptchaTaskRequest',
+    'HCaptchaSolutionRequest',
     'RecaptchaV2TaskRequest',
     'RecaptchaV2SolutionRequest',
     'RecaptchaV3TaskRequest',
@@ -112,6 +116,20 @@ class GetBalanceRequest(CapMonsterRequest):
         }
 
 
+def _apply_proxy_to_task(task: dict, proxy: Proxy) -> None:
+    """Attach CapMonster proxy settings to a task."""
+
+    task.update({
+        "proxyType": proxy.protocol.lower(),
+        "proxyAddress": proxy.host,
+        "proxyPort": proxy.port,
+    })
+
+    if proxy.login:
+        task["proxyLogin"] = proxy.login
+        task["proxyPassword"] = proxy.password
+
+
 class HCaptchaTaskRequest(CreateTaskRequest):
     """ hCaptcha task request for CapMonster """
 
@@ -187,6 +205,40 @@ class RecaptchaV3TaskRequest(CreateTaskRequest):
 
         if hasattr(captcha, 'page_action') and captcha.page_action:
             task["pageAction"] = captcha.page_action
+
+        return super().prepare(task_data=task)
+
+
+class GeeTestV4TaskRequest(CreateTaskRequest):
+    """ GeeTest v4 task request for CapMonster """
+
+    def prepare(self, captcha, proxy: Proxy = None, user_agent: str = None, cookies: dict = None) -> dict:
+        """Prepare createTask request for GeeTest v4."""
+
+        task = {
+            "type": "GeeTestTask",
+            "websiteURL": captcha.page_url,
+            "gt": captcha.captcha_id,
+            "version": 4,
+        }
+
+        init_parameters = dict(captcha.init_parameters or {})
+        if captcha.risk_type is not None and "riskType" not in init_parameters:
+            init_parameters["riskType"] = captcha.risk_type
+        if init_parameters:
+            task["initParameters"] = init_parameters
+
+        if captcha.geetest_api_server_subdomain:
+            task["geetestApiServerSubdomain"] = captcha.geetest_api_server_subdomain
+
+        if captcha.geetest_get_lib:
+            task["geetestGetLib"] = captcha.geetest_get_lib
+
+        if proxy:
+            _apply_proxy_to_task(task, proxy)
+
+        if user_agent:
+            task["userAgent"] = user_agent
 
         return super().prepare(task_data=task)
 
@@ -273,6 +325,44 @@ class RecaptchaV3SolutionRequest(GetTaskResultRequest):
 
         if not solution:
             raise errors.ServiceError("Missing gRecaptchaResponse in solution.")
+
+        return dict(
+            solution=solution,
+        )
+
+
+class GeeTestV4SolutionRequest(GetTaskResultRequest):
+    """ GeeTest v4 solution request for CapMonster """
+
+    def parse_response(self, response) -> Dict[str, Any]:
+        response_data = super().parse_response(response)
+
+        if response_data["status"] != "ready":
+            raise errors.SolutionNotReadyYet()
+
+        solution_data = response_data.get("solution") or {}
+        solution_class = self.source_data['task'].captcha.get_solution_class()
+
+        required_fields = (
+            "captcha_id",
+            "lot_number",
+            "pass_token",
+            "gen_time",
+            "captcha_output",
+        )
+        missing_fields = [field for field in required_fields if field not in solution_data]
+        if missing_fields:
+            raise errors.ServiceError(
+                "Missing GeeTest v4 solution fields: " + ", ".join(missing_fields)
+            )
+
+        solution = solution_class(
+            captcha_id=solution_data["captcha_id"],
+            lot_number=solution_data["lot_number"],
+            pass_token=solution_data["pass_token"],
+            gen_time=solution_data["gen_time"],
+            captcha_output=solution_data["captcha_output"],
+        )
 
         return dict(
             solution=solution,

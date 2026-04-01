@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Any, Dict, Optional
 
 from .base import BaseCaptcha, BaseCaptchaSolution
 
@@ -9,6 +10,10 @@ class GeeTestV4(BaseCaptcha):
 
     page_url: str
     captcha_id: str
+    risk_type: Optional[str] = None
+    geetest_api_server_subdomain: Optional[str] = None
+    geetest_get_lib: Optional[str] = None
+    init_parameters: Optional[Dict[str, Any]] = None
 
 
 @dataclass

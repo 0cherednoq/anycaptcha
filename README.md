@@ -506,7 +506,8 @@ async def main():
         # solve CAPTCHA
         solved = solver.solve_geetest_v4(
             page_url=page_url,
-            captcha_id=captcha_id
+            captcha_id=captcha_id,
+            risk_type="slide"  # optional, required by some providers/sites
         )
 
         # get solution data
