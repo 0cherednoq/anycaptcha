@@ -10,7 +10,8 @@ from .twocaptcha import (
     RecaptchaV2TaskRequest, RecaptchaV2SolutionRequest,
     RecaptchaV3TaskRequest, RecaptchaV3SolutionRequest,
     HCaptchaTaskRequest, HCaptchaSolutionRequest,
-    GeeTestTaskRequest, GeeTestSolutionRequest
+    GeeTestTaskRequest, GeeTestSolutionRequest,
+    CloudflareTurnstileTaskRequest, CloudflareTurnstileSolutionRequest
 )
 
 __all__ = [
@@ -20,7 +21,8 @@ __all__ = [
     'RecaptchaV2TaskRequest', 'RecaptchaV2SolutionRequest',
     'RecaptchaV3TaskRequest', 'RecaptchaV3SolutionRequest',
     'HCaptchaTaskRequest', 'HCaptchaSolutionRequest',
-    'GeeTestTaskRequest', 'GeeTestSolutionRequest'
+    'GeeTestTaskRequest', 'GeeTestSolutionRequest',
+    'CloudflareTurnstileTaskRequest', 'CloudflareTurnstileSolutionRequest'
 ]
 
 
@@ -65,3 +67,4 @@ RecaptchaV2TaskRequest = _decorator(RecaptchaV2TaskRequest)  # type: ignore
 RecaptchaV3TaskRequest = _decorator(RecaptchaV3TaskRequest)  # type: ignore
 HCaptchaTaskRequest = _decorator(HCaptchaTaskRequest)  # type: ignore
 GeeTestTaskRequest = _decorator(GeeTestTaskRequest)  # type: ignore
+CloudflareTurnstileTaskRequest = _decorator(CloudflareTurnstileTaskRequest)  # type: ignore

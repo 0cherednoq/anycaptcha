@@ -6,13 +6,15 @@ from .base import HTTPService, CaptchaTask
 from .._transport.http_transport import HTTPRequestJSON  # type: ignore
 from .. import errors
 from ..captcha import CaptchaType
-from ..enums import CaptchaAlphabet
+from ..enums import CaptchaAlphabet, CloudflareChallengeType
 
 __all__ = [
     'Service', 'CreateTaskRequest', 'GetTaskResultRequest',
     'GetBalanceRequest',
     'RecaptchaV2TaskRequest',
-    'RecaptchaV2SolutionRequest'
+    'RecaptchaV2SolutionRequest',
+    'CloudflareTurnstileTaskRequest',
+    'CloudflareTurnstileSolutionRequest'
 ]
 
 
@@ -26,7 +28,8 @@ class Service(HTTPService):
         for captcha_type in self.settings:
             self.settings[captcha_type].polling_interval = 5
             self.settings[captcha_type].solution_timeout = 180
-            if captcha_type in (CaptchaType.RECAPTCHAV2, CaptchaType.HCAPTCHA):
+            if captcha_type in (CaptchaType.RECAPTCHAV2, CaptchaType.HCAPTCHA,
+                                CaptchaType.CLOUDFLARE_TURNSTILE):
                 self.settings[captcha_type].polling_delay = 20
                 self.settings[captcha_type].solution_timeout = 300
             elif captcha_type in (CaptchaType.RECAPTCHAV3,):
@@ -141,6 +144,48 @@ class RecaptchaV2TaskRequest(CreateTaskRequest):
         return super().prepare(task_data=task)
 
 
+class CloudflareTurnstileTaskRequest(CreateTaskRequest):
+    """ Cloudflare Turnstile task request for CapSolver """
+
+    def prepare(self, captcha, proxy: Proxy = None, user_agent: str = None, cookies: dict = None) -> dict:
+        """ Prepare createTask request for Cloudflare Turnstile """
+        if captcha.challenge_type == CloudflareChallengeType.CHALLENGE:
+            raise errors.BadInputDataError(
+                "capsolver.com does not support the Turnstile Challenge token variant!"
+            )
+
+        if captcha.challenge_type == CloudflareChallengeType.CHALLENGE_COOKIE:
+            if proxy is None:
+                raise errors.BadInputDataError(
+                    "capsolver.com requires proxy for the cf_clearance variant!"
+                )
+
+            task = {
+                "type": "AntiCloudflareTask",
+                "websiteURL": captcha.page_url,
+                "proxy": proxy.as_url.split("://")[1]
+            }
+
+            if user_agent:
+                task["userAgent"] = user_agent
+        else:
+            task = {
+                "type": "AntiTurnstileTaskProxyLess",
+                "websiteURL": captcha.page_url,
+                "websiteKey": captcha.site_key,
+            }
+
+            metadata = {}
+            if captcha.action:
+                metadata["action"] = captcha.action
+            if captcha.data:
+                metadata["cdata"] = captcha.data
+            if metadata:
+                task["metadata"] = metadata
+
+        return super().prepare(task_data=task)
+
+
 class GetTaskResultRequest(CapSolverRequest):
     """ GetTaskResult Request class for CapMonster """
 
@@ -166,6 +211,36 @@ class GetTaskResultRequest(CapSolverRequest):
             cost=response_data.get("cost"),
             extra=response_data,
             status=response_data.get("status")
+        )
+
+
+class CloudflareTurnstileSolutionRequest(GetTaskResultRequest):
+    """ Cloudflare Turnstile solution request for CapSolver """
+
+    def parse_response(self, response) -> Dict[str, Any]:
+        response_data = super().parse_response(response)
+
+        if response_data["status"] != "ready":
+            raise errors.SolutionNotReadyYet()
+
+        solution_data = response_data.get("solution") or {}
+        solution_class = self.source_data['task'].captcha.get_solution_class()
+
+        token = solution_data.get("token")
+        cf_clearance = (solution_data.get("cookies") or {}).get("cf_clearance")
+        if not token and not cf_clearance:
+            raise errors.ServiceError("Missing token/cf_clearance in solution.")
+
+        solution = solution_class(
+            token=token,
+            cf_clearance=cf_clearance,
+            user_agent=solution_data.get("userAgent"),
+        )
+
+        return dict(
+            solution=solution,
+            cost=response_data.get("cost"),
+            extra=response_data
         )
 
 

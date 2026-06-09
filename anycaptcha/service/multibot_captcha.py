@@ -17,6 +17,7 @@ from .twocaptcha import (
     GeeTestV4TaskRequest, GeeTestV4SolutionRequest,
     HCaptchaTaskRequest, HCaptchaSolutionRequest,
     CapyPuzzleTaskRequest, CapyPuzzleSolutionRequest,
+    CloudflareTurnstileTaskRequest, CloudflareTurnstileSolutionRequest,
 )
 
 __all__ = [
@@ -32,6 +33,7 @@ __all__ = [
     'GeeTestV4TaskRequest', 'GeeTestV4SolutionRequest',
     'HCaptchaTaskRequest', 'HCaptchaSolutionRequest',
     'CapyPuzzleTaskRequest', 'CapyPuzzleSolutionRequest',
+    'CloudflareTurnstileTaskRequest', 'CloudflareTurnstileSolutionRequest',
 ]
 
 from .._transport import MultiPartHTTPTransport

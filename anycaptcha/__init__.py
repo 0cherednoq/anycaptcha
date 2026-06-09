@@ -6,6 +6,7 @@ from .solver import Solver
 from .service import Service
 from .enums import CaptchaAlphabet
 from .enums import CaptchaCharType
+from .enums import CloudflareChallengeType
 from .enums import WorkerLanguage
 from .errors import AnyCaptchaException
 from .errors import SolutionNotReadyYet
@@ -31,4 +32,5 @@ from .captcha.keycaptcha import KeyCaptcha, KeyCaptchaSolution
 from .captcha.geetest import GeeTest, GeeTestSolution
 from .captcha.geetest_v4 import GeeTestV4, GeeTestV4Solution
 from .captcha.capy import CapyPuzzle, CapyPuzzleSolution
+from .captcha.cloudflare_turnstile import CloudflareTurnstile, CloudflareTurnstileSolution
 from .captcha.base import CaptchaType, BaseCaptchaSolution

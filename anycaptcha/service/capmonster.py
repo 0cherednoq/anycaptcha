@@ -6,7 +6,7 @@ from .base import HTTPService, CaptchaTask
 from .._transport.http_transport import HTTPRequestJSON  # type: ignore
 from .. import errors
 from ..captcha import CaptchaType
-from ..enums import CaptchaAlphabet
+from ..enums import CaptchaAlphabet, CloudflareChallengeType
 
 __all__ = [
     'Service', 'CreateTaskRequest', 'GetTaskResultRequest',
@@ -18,7 +18,9 @@ __all__ = [
     'RecaptchaV2TaskRequest',
     'RecaptchaV2SolutionRequest',
     'RecaptchaV3TaskRequest',
-    'RecaptchaV3SolutionRequest'
+    'RecaptchaV3SolutionRequest',
+    'CloudflareTurnstileTaskRequest',
+    'CloudflareTurnstileSolutionRequest'
 ]
 
 
@@ -32,7 +34,8 @@ class Service(HTTPService):
         for captcha_type in self.settings:
             self.settings[captcha_type].polling_interval = 5
             self.settings[captcha_type].solution_timeout = 180
-            if captcha_type in (CaptchaType.RECAPTCHAV2, CaptchaType.HCAPTCHA):
+            if captcha_type in (CaptchaType.RECAPTCHAV2, CaptchaType.HCAPTCHA,
+                                CaptchaType.CLOUDFLARE_TURNSTILE):
                 self.settings[captcha_type].polling_delay = 20
                 self.settings[captcha_type].solution_timeout = 300
             elif captcha_type in (CaptchaType.RECAPTCHAV3,):
@@ -243,6 +246,54 @@ class GeeTestV4TaskRequest(CreateTaskRequest):
         return super().prepare(task_data=task)
 
 
+class CloudflareTurnstileTaskRequest(CreateTaskRequest):
+    """ Cloudflare Turnstile task request for CapMonster """
+
+    def prepare(self, captcha, proxy: Proxy = None, user_agent: str = None, cookies: dict = None) -> dict:
+        """ Prepare createTask request for Cloudflare Turnstile """
+        task = {
+            "type": "TurnstileTask",
+            "websiteURL": captcha.page_url,
+            "websiteKey": captcha.site_key,
+        }
+
+        if captcha.challenge_type == CloudflareChallengeType.CHALLENGE:
+            if not user_agent:
+                raise errors.BadInputDataError(
+                    "capmonster.cloud requires user_agent for the Turnstile Challenge variant!"
+                )
+            task["cloudflareTaskType"] = "token"
+            task["userAgent"] = user_agent
+            task.update(
+                captcha.get_optional_data(
+                    action=('pageAction', None),
+                    data=('data', None),
+                    page_data=('pageData', None),
+                )
+            )
+        elif captcha.challenge_type == CloudflareChallengeType.CHALLENGE_COOKIE:
+            if proxy is None or not user_agent:
+                raise errors.BadInputDataError(
+                    "capmonster.cloud requires proxy and user_agent "
+                    "for the cf_clearance variant!"
+                )
+            if not captcha.html_page_base64:
+                raise errors.BadInputDataError(
+                    "capmonster.cloud requires html_page_base64 for the cf_clearance variant!"
+                )
+            task["cloudflareTaskType"] = "cf_clearance"
+            task["htmlPageBase64"] = captcha.html_page_base64
+            task["userAgent"] = user_agent
+        else:
+            if user_agent:
+                task["userAgent"] = user_agent
+
+        if proxy:
+            _apply_proxy_to_task(task, proxy)
+
+        return super().prepare(task_data=task)
+
+
 class GetTaskResultRequest(CapMonsterRequest):
     """ GetTaskResult Request class for CapMonster """
 
@@ -325,6 +376,34 @@ class RecaptchaV3SolutionRequest(GetTaskResultRequest):
 
         if not solution:
             raise errors.ServiceError("Missing gRecaptchaResponse in solution.")
+
+        return dict(
+            solution=solution,
+        )
+
+
+class CloudflareTurnstileSolutionRequest(GetTaskResultRequest):
+    """ Cloudflare Turnstile solution request for CapMonster """
+
+    def parse_response(self, response) -> Dict[str, Any]:
+        response_data = super().parse_response(response)
+
+        if response_data["status"] != "ready":
+            raise errors.SolutionNotReadyYet()
+
+        solution_data = response_data.get("solution") or {}
+        solution_class = self.source_data['task'].captcha.get_solution_class()
+
+        token = solution_data.get("token")
+        cf_clearance = solution_data.get("cf_clearance")
+        if not token and not cf_clearance:
+            raise errors.ServiceError("Missing token/cf_clearance in solution.")
+
+        solution = solution_class(
+            token=token,
+            cf_clearance=cf_clearance,
+            user_agent=solution_data.get("userAgent"),
+        )
 
         return dict(
             solution=solution,

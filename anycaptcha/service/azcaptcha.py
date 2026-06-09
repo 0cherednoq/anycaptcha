@@ -7,7 +7,7 @@ from .base import HTTPService
 from .._transport.http_transport import HTTPRequestJSON  # type: ignore
 from .. import errors
 from ..captcha import CaptchaType
-from ..enums import CaptchaAlphabet
+from ..enums import CaptchaAlphabet, CloudflareChallengeType
 
 __all__ = [
     'Service', 'GetBalanceRequest', 'GetStatusRequest',
@@ -16,7 +16,8 @@ __all__ = [
     'RecaptchaV2TaskRequest', 'RecaptchaV2SolutionRequest',
     'RecaptchaV3TaskRequest', 'RecaptchaV3SolutionRequest',
     'HCaptchaTaskRequest', 'HCaptchaSolutionRequest',
-    'FunCaptchaTaskRequest', 'FunCaptchaSolutionRequest'
+    'FunCaptchaTaskRequest', 'FunCaptchaSolutionRequest',
+    'CloudflareTurnstileTaskRequest', 'CloudflareTurnstileSolutionRequest'
 ]
 
 
@@ -31,7 +32,8 @@ class Service(HTTPService):
         for captcha_type in self.settings:
             self.settings[captcha_type].polling_interval = 5
             self.settings[captcha_type].solution_timeout = 180
-            if captcha_type in (CaptchaType.RECAPTCHAV2, CaptchaType.HCAPTCHA):
+            if captcha_type in (CaptchaType.RECAPTCHAV2, CaptchaType.HCAPTCHA,
+                                CaptchaType.CLOUDFLARE_TURNSTILE):
                 self.settings[captcha_type].polling_delay = 20
                 self.settings[captcha_type].solution_timeout = 300
             elif captcha_type in (CaptchaType.RECAPTCHAV3,):
@@ -454,3 +456,63 @@ class FunCaptchaTaskRequest(TaskRequest):
 
 class FunCaptchaSolutionRequest(SolutionRequest):
     """ FunCaptcha solution request """
+
+
+class CloudflareTurnstileTaskRequest(TaskRequest):
+    """ Cloudflare Turnstile task request """
+
+    # pylint: disable=arguments-differ,signature-differs
+    def prepare(self, captcha, proxy: Proxy, user_agent, cookies) -> dict:  # type: ignore
+        """ Prepare request """
+
+        if captcha.challenge_type == CloudflareChallengeType.CHALLENGE_COOKIE:
+            raise errors.BadInputDataError(
+                "azcaptcha.com does not support the cf_clearance variant!"
+            )
+
+        request = super().prepare(
+            captcha=captcha,
+            proxy=proxy,
+            user_agent=user_agent,
+            cookies=cookies
+        )
+
+        request['data'].update(
+            dict(
+                method="turnstile",
+                sitekey=captcha.site_key,
+                pageurl=captcha.page_url
+            )
+        )
+
+        # add optional params
+        request['data'].update(
+            captcha.get_optional_data(
+                action=('action', None),
+                data=('data', None),
+                page_data=('pagedata', None),
+            )
+        )
+
+        return request
+
+
+class CloudflareTurnstileSolutionRequest(SolutionRequest):
+    """ Cloudflare Turnstile solution request """
+
+    def parse_response(self, response) -> dict:
+        """ Parse response and return solution """
+
+        response_data = super(SolutionRequest, self).parse_response(response)
+
+        solution_class = self.source_data['task'].captcha.get_solution_class()
+        solution = solution_class(
+            token=response_data.pop("request"),
+            user_agent=response_data.pop("useragent", None)
+        )
+
+        return dict(
+            solution=solution,
+            cost=None,
+            extra=response_data
+        )

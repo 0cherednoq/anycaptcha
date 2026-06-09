@@ -8,4 +8,5 @@ from .keycaptcha import KeyCaptcha, KeyCaptchaSolution
 from .geetest import GeeTest, GeeTestSolution
 from .geetest_v4 import GeeTestV4, GeeTestV4Solution
 from .capy import CapyPuzzle, CapyPuzzleSolution
+from .cloudflare_turnstile import CloudflareTurnstile, CloudflareTurnstileSolution
 from .base import CaptchaType, BaseCaptchaSolution

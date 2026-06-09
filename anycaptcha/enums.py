@@ -33,6 +33,15 @@ class CaptchaType(StrEnum):
     HCAPTCHA    = "HCaptcha"
     KEYCAPTCHA  = "KeyCaptcha"
     CAPY        = "CapyPuzzle"
+    CLOUDFLARE_TURNSTILE = "CloudflareTurnstile"
+
+
+class CloudflareChallengeType(StrEnum):
+    """ Cloudflare Turnstile solving variant """
+
+    TURNSTILE = "turnstile"  # standalone widget -> token
+    CHALLENGE = "token"  # Cloudflare Challenge page -> token
+    CHALLENGE_COOKIE = "cf_clearance"  # full challenge -> cf_clearance cookie
 
 
 class CaptchaAlphabet(StrEnum):

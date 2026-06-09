@@ -7,7 +7,7 @@ from typing import Union
 
 from .captcha import (
     ImageCaptcha, TextCaptcha, RecaptchaV2, RecaptchaV3, HCaptcha, FunCaptcha, KeyCaptcha, GeeTest,
-    GeeTestV4, CapyPuzzle
+    GeeTestV4, CapyPuzzle, CloudflareTurnstile
 )
 from .captcha.base import BaseCaptcha
 from .service.base import SolvedCaptcha, CaptchaTask
@@ -216,6 +216,32 @@ class Solver:
         :rtype: unicaps.AsyncSolvedCaptcha
         """
         return await self._solve_captcha_async(CapyPuzzle, site_key, page_url, **kwargs)
+
+    async def solve_cloudflare_turnstile(self, site_key: str, page_url: str,  # type: ignore
+                                         **kwargs) -> SolvedCaptcha:
+        r"""Solves Cloudflare Turnstile.
+
+        :param site_key: Turnstile website key (value of "data-sitekey" parameter).
+        :param page_url: Full URL of the page with CAPTCHA.
+        :param challenge_type: (optional) Solving variant (CloudflareChallengeType):
+            TURNSTILE (default) - standalone widget -> token,
+            CHALLENGE - Cloudflare Challenge page -> token,
+            CHALLENGE_COOKIE - full challenge -> cf_clearance cookie.
+        :param action: (optional) Value of "action"/"pageAction" parameter
+            (e.g. "managed" or "non-interactive" for Challenge pages).
+        :param data: (optional) Value of "cData" parameter.
+        :param page_data: (optional) Value of "chlPageData" parameter.
+        :param html_page_base64: (optional) Base64-encoded HTML of the challenge page
+            (required by some services for the CHALLENGE_COOKIE variant).
+        :param proxy: (optional) Proxy to use while solving the CAPTCHA
+            (required for the CHALLENGE_COOKIE variant).
+        :param user_agent: (optional) User-Agent to use while solving the CAPTCHA
+            (required for the CHALLENGE and CHALLENGE_COOKIE variants on some services).
+        :param cookies: (optional) Cookies to use while solving the CAPTCHA.
+        :return: :class:`AsyncSolvedCaptcha <AsyncSolvedCaptcha>` object
+        :rtype: unicaps.AsyncSolvedCaptcha
+        """
+        return await self._solve_captcha_async(CloudflareTurnstile, site_key, page_url, **kwargs)
 
     async def create_task(self, captcha: BaseCaptcha) -> CaptchaTask:  # type: ignore
         """Create task to solve CAPTCHA

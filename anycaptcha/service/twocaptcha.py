@@ -8,7 +8,7 @@ from .base import HTTPService
 from .._transport.http_transport import HTTPRequestJSON  # type: ignore
 from .. import errors
 from ..captcha import CaptchaType
-from ..enums import CaptchaAlphabet
+from ..enums import CaptchaAlphabet, CloudflareChallengeType
 
 __all__ = [
     'Service', 'GetBalanceRequest', 'GetStatusRequest',
@@ -23,6 +23,7 @@ __all__ = [
     'GeeTestV4TaskRequest', 'GeeTestV4SolutionRequest',
     'HCaptchaTaskRequest', 'HCaptchaSolutionRequest',
     'CapyPuzzleTaskRequest', 'CapyPuzzleSolutionRequest',
+    'CloudflareTurnstileTaskRequest', 'CloudflareTurnstileSolutionRequest',
 ]
 
 
@@ -40,7 +41,8 @@ class Service(HTTPService):
             self.settings[captcha_type].polling_interval = 5
             self.settings[captcha_type].solution_timeout = 180
 
-            if captcha_type in (CaptchaType.RECAPTCHAV2, CaptchaType.HCAPTCHA):
+            if captcha_type in (CaptchaType.RECAPTCHAV2, CaptchaType.HCAPTCHA,
+                                CaptchaType.CLOUDFLARE_TURNSTILE):
                 self.settings[captcha_type].polling_delay = 20
                 self.settings[captcha_type].solution_timeout = 300
             elif captcha_type in (CaptchaType.RECAPTCHAV3,):
@@ -278,6 +280,11 @@ class SolutionRequest(ResRequest):
             )
         elif captcha_type == CaptchaType.CAPY:
             solution = solution_class(**solution_data)
+        elif captcha_type == CaptchaType.CLOUDFLARE_TURNSTILE:
+            solution = solution_class(
+                token=solution_data,
+                user_agent=response_data.pop('useragent', None)
+            )
         else:
             solution = solution_class(solution_data)
 
@@ -676,3 +683,46 @@ class GeeTestV4TaskRequest(TaskRequest):
 
 class GeeTestV4SolutionRequest(SolutionRequest):
     """ GeeTest v4 solution request """
+
+
+class CloudflareTurnstileTaskRequest(TaskRequest):
+    """ Cloudflare Turnstile task request """
+
+    # pylint: disable=arguments-differ,signature-differs
+    def prepare(self, captcha, proxy, user_agent, cookies) -> dict:  # type: ignore
+        """ Prepare request """
+
+        if captcha.challenge_type == CloudflareChallengeType.CHALLENGE_COOKIE:
+            raise errors.BadInputDataError(
+                f"{self._service.BASE_URL} does not support the cf_clearance variant!"
+            )
+
+        request = super().prepare(
+            captcha=captcha,
+            proxy=proxy,
+            user_agent=user_agent,
+            cookies=cookies
+        )
+
+        request['data'].update(
+            dict(
+                method="turnstile",
+                sitekey=captcha.site_key,
+                pageurl=captcha.page_url
+            )
+        )
+
+        # add optional params
+        request['data'].update(
+            captcha.get_optional_data(
+                action=('action', None),
+                data=('data', None),
+                page_data=('pagedata', None),
+            )
+        )
+
+        return request
+
+
+class CloudflareTurnstileSolutionRequest(SolutionRequest):
+    """ Cloudflare Turnstile solution request """

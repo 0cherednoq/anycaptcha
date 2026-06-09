@@ -11,7 +11,7 @@ from .base import HTTPService
 from .._transport.http_transport import HTTPRequestJSON  # type: ignore
 from .. import errors
 from ..captcha import CaptchaType
-from ..enums import WorkerLanguage
+from ..enums import WorkerLanguage, CloudflareChallengeType
 
 __all__ = [
     'Service', 'GetBalanceRequest', 'GetStatusRequest',
@@ -23,6 +23,7 @@ __all__ = [
     'GeeTestTaskRequest', 'GeeTestSolutionRequest',
     'GeeTestV4TaskRequest', 'GeeTestV4SolutionRequest',
     'HCaptchaTaskRequest', 'HCaptchaSolutionRequest',
+    'CloudflareTurnstileTaskRequest', 'CloudflareTurnstileSolutionRequest',
 ]
 
 
@@ -282,6 +283,11 @@ class SolutionRequest(Request):
             args.append(solution_data.pop('gRecaptchaResponse'))
         elif captcha_type in (CaptchaType.FUNCAPTCHA,):
             args.append(solution_data.pop('token'))
+        elif captcha_type in (CaptchaType.CLOUDFLARE_TURNSTILE,):
+            kwargs.update(
+                token=solution_data.pop('token'),
+                user_agent=solution_data.pop('userAgent', None)
+            )
         elif captcha_type in (CaptchaType.GEETEST, CaptchaType.GEETESTV4):
             kwargs.update(solution_data)
         else:
@@ -574,3 +580,47 @@ class HCaptchaTaskRequest(TaskRequest):
 
 class HCaptchaSolutionRequest(SolutionRequest):
     """ hCaptcha solution request """
+
+
+class CloudflareTurnstileTaskRequest(TaskRequest):
+    """ Cloudflare Turnstile task Request class """
+
+    # pylint: disable=arguments-differ,signature-differs
+    def prepare(self, captcha, proxy: Proxy, user_agent, cookies) -> dict:  # type: ignore
+        """ Prepares request """
+
+        if captcha.challenge_type == CloudflareChallengeType.CHALLENGE_COOKIE:
+            raise errors.BadInputDataError(
+                "anti-captcha.com does not support the cf_clearance variant!"
+            )
+
+        if proxy:
+            kwargs = dict(captcha=captcha, proxy=proxy, user_agent=user_agent, cookies=cookies)
+            task_type = "TurnstileTask"
+        else:
+            kwargs = dict(captcha=captcha, proxy=None, user_agent=None, cookies=None)
+            task_type = "TurnstileTaskProxyless"
+
+        request = super().prepare(**kwargs)
+        request['json']['task'].update(
+            dict(
+                type=task_type,
+                websiteURL=captcha.page_url,
+                websiteKey=captcha.site_key
+            )
+        )
+
+        # set optional data if any
+        request['json']['task'].update(
+            captcha.get_optional_data(
+                action=('action', None),
+                data=('cData', None),
+                page_data=('chlPageData', None),
+            )
+        )
+
+        return request
+
+
+class CloudflareTurnstileSolutionRequest(SolutionRequest):
+    """ Cloudflare Turnstile solution request """
