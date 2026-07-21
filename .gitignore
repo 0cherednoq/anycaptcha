@@ -5,5 +5,5 @@ poetry.lock
 poetry.toml
 dist
 
-test*.py
+/test*.py
 *.bat

@@ -11,6 +11,14 @@ dependencies = [
     "pydantic>=1",
 ]
 
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["anycaptcha*"]
+exclude = ["openspec*"]
+
 [dependency-groups]
 dev = [
     "curl-cffi>=0.15.0",
